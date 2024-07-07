@@ -66,11 +66,9 @@ function Dashboard({ user: initialUser, onLogout }) {
   };
 
   const fetchPageStats = async () => {
-    const metrics = ['page_fans', 'page_views_total', 'page_engaged_users', 'page_impressions'];
     try {
       setLoading(true);
       setError(null);
-      const stats = [];
       const pageAccessToken = await fetchPageAccessToken(selectedPage);
 
       if (!pageAccessToken) {
@@ -78,23 +76,20 @@ function Dashboard({ user: initialUser, onLogout }) {
         return;
       }
 
-      for (const metric of metrics) {
-        const response = await axios.get(
-          `https://graph.facebook.com/v17.0/${selectedPage}/insights`,
-          {
-            params: {
-              metric,
-              access_token: pageAccessToken,
-              period: 'day',
-              date_preset: 'last_30d',
-            },
-          }
-        );
-        stats.push(...response.data.data);
-      }
+      const response = await axios.get(
+        `https://graph.facebook.com/v17.0/${selectedPage}/insights`,
+        {
+          params: {
+            metric: 'page_impressions_unique,page_impressions_paid',
+            access_token: pageAccessToken,
+            period: 'day',
+            date_preset: 'last_30d',
+          },
+        }
+      );
 
-      console.log('Page insights:', stats);
-      setPageStats(stats);
+      console.log('Page insights:', response.data);
+      setPageStats(response.data.data);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching page stats:', error.response ? error.response.data : error.message);
