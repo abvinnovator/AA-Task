@@ -8,7 +8,7 @@ function Dashboard({ user: initialUser, onLogout }) {
   const [user, setUser] = useState(initialUser);
   const [pages, setPages] = useState([]);
   const [selectedPage, setSelectedPage] = useState('');
-  const [pageStats, setPageStats] = useState([]);
+  const [pageFans, setPageFans] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -65,7 +65,7 @@ function Dashboard({ user: initialUser, onLogout }) {
     }
   };
 
-  const fetchPageStats = async () => {
+  const fetchPageFans = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -80,7 +80,7 @@ function Dashboard({ user: initialUser, onLogout }) {
         `https://graph.facebook.com/v17.0/${selectedPage}/insights`,
         {
           params: {
-            metric: 'page_impressions_unique,page_impressions_paid,page_fan_count,page_engaged_users,page_consumptions_by_consumption_type,page_consumptions,page_positive_feedback_by_type',
+            metric: 'page_fans',
             access_token: pageAccessToken,
             period: 'day',
             date_preset: 'last_30d',
@@ -88,11 +88,11 @@ function Dashboard({ user: initialUser, onLogout }) {
         }
       );
   
-      setPageStats(response.data.data);
+      setPageFans(response.data.data[0].values[0].value);
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching page stats:', error.response ? error.response.data : error.message);
-      setError(`Error fetching page stats: ${error.response?.data?.error?.message || error.message}`);
+      console.error('Error fetching page fans:', error.response ? error.response.data : error.message);
+      setError(`Error fetching page fans: ${error.response?.data?.error?.message || error.message}`);
       setLoading(false);
     }
   };
@@ -103,7 +103,7 @@ function Dashboard({ user: initialUser, onLogout }) {
 
   useEffect(() => {
     if (selectedPage && user && user.accessToken) {
-      fetchPageStats();
+      fetchPageFans();
     }
   }, [selectedPage, user]);
 
@@ -149,49 +149,15 @@ function Dashboard({ user: initialUser, onLogout }) {
             ))}
           </Select>
 
-          {pageStats.length > 0 && (
-            <Grid container spacing={2} style={{ marginTop: 20 }}>
-              <Grid item xs={12} sm={6} md={3}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6">Total Followers / Fans</Typography>
-                    <Typography variant="body2">
-                      {pageStats.find(stat => stat.name === 'page_fan_count')?.values[0]?.value || 'N/A'}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6">Total Engagement</Typography>
-                    <Typography variant="body2">
-                      {pageStats.find(stat => stat.name === 'page_engaged_users')?.values[0]?.value || 'N/A'}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6">Total Impressions</Typography>
-                    <Typography variant="body2">
-                      {pageStats.find(stat => stat.name === 'page_impressions_unique')?.values[0]?.value || 'N/A'}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6">Total Reactions</Typography>
-                    <Typography variant="body2">
-                      {pageStats.find(stat => stat.name === 'page_positive_feedback_by_type')?.values[0]?.value || 'N/A'}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
+          {pageFans !== null && (
+            <Card style={{ minWidth: 200, margin: '20px auto' }}>
+              <CardContent>
+                <Typography variant="h6">Total Followers / Fans</Typography>
+                <Typography variant="body2">
+                  {pageFans.toLocaleString()}
+                </Typography>
+              </CardContent>
+            </Card>
           )}
         </>
       )}
