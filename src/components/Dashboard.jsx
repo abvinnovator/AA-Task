@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Select, MenuItem, Card, CardContent, Typography, Button, CircularProgress, TextField } from '@mui/material';
+import { Select, MenuItem, Card, CardContent, Typography, Button, CircularProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
-function Dashboard({ user, onLogout }) {
+function Dashboard({ user: initialUser, onLogout }) {
   const navigate = useNavigate();
+  const [user, setUser] = useState(initialUser);
   const [pages, setPages] = useState([]);
   const [selectedPage, setSelectedPage] = useState('');
   const [pageStats, setPageStats] = useState(null);
   const [dateRange, setDateRange] = useState({
-    since: '2023-01-01',  // Changed to a past date
-    until: '2023-12-31',  // Changed to a past date
+    since: '2023-01-01',
+    until: '2023-12-31',
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -19,21 +20,25 @@ function Dashboard({ user, onLogout }) {
     if (!user) {
       const storedUser = localStorage.getItem('user');
       if (storedUser) {
-        user = JSON.parse(storedUser);
+        setUser(JSON.parse(storedUser));
       } else {
         navigate('/');
-        return;
       }
     }
-    fetchPages();
   }, [user, navigate]);
+
+  useEffect(() => {
+    if (user && user.accessToken) {
+      fetchPages();
+    }
+  }, [user]);
 
   const fetchPages = async () => {
     try {
       setLoading(true);
       setError(null);
       const response = await axios.get(
-        `https://graph.facebook.com/v20.0/me/accounts?access_token=${user.accessToken}`
+        `https://graph.facebook.com/v17.0/me/accounts?access_token=${user.accessToken}`
       );
       setPages(response.data.data);
       setLoading(false);
@@ -49,22 +54,23 @@ function Dashboard({ user, onLogout }) {
       setLoading(true);
       setError(null);
       const response = await axios.get(
-        `https://graph.facebook.com/v20.0/${selectedPage}/insights`,
+        `https://graph.facebook.com/v17.0/${selectedPage}/insights`,
         {
           params: {
-            metric: 'page_fans_total,page_post_engagements,page_impressions,page_reactions_total',
+            metric: 'page_fan_adds_unique,page_views_total,page_engaged_users,page_impressions',
             access_token: user.accessToken,
+            period: 'day',
             since: dateRange.since,
             until: dateRange.until,
-            period: 'total_over_range'
           },
         }
       );
+      console.log('Page insights:', response.data);
       setPageStats(response.data.data);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching page stats:', error);
-      setError('Error fetching page stats. This page might not have any activity or you might not have sufficient permissions.');
+      setError(`Error fetching page stats: ${error.response?.data?.error?.message || error.message}`);
       setLoading(false);
     }
   };
@@ -73,18 +79,11 @@ function Dashboard({ user, onLogout }) {
     setSelectedPage(event.target.value);
   };
 
-  const handleDateChange = (event) => {
-    setDateRange({
-      ...dateRange,
-      [event.target.name]: event.target.value
-    });
-  };
-
   useEffect(() => {
-    if (selectedPage) {
+    if (selectedPage && user && user.accessToken) {
       fetchPageStats();
     }
-  }, [selectedPage, dateRange]);
+  }, [selectedPage, user, dateRange]);
 
   const handleLogout = () => {
     onLogout();
@@ -120,30 +119,6 @@ function Dashboard({ user, onLogout }) {
             ))}
           </Select>
 
-          <div style={{ marginTop: '20px', marginBottom: '20px' }}>
-            <TextField
-              label="Since"
-              type="date"
-              name="since"
-              value={dateRange.since}
-              onChange={handleDateChange}
-              InputLabelProps={{
-                shrink: true,
-              }}
-              style={{ marginRight: '20px' }}
-            />
-            <TextField
-              label="Until"
-              type="date"
-              name="until"
-              value={dateRange.until}
-              onChange={handleDateChange}
-              InputLabelProps={{
-                shrink: true,
-              }}
-            />
-          </div>
-
           {pageStats && (
             <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-around', marginTop: '20px' }}>
               {pageStats.map((stat) => (
@@ -153,7 +128,7 @@ function Dashboard({ user, onLogout }) {
                       {stat.name}
                     </Typography>
                     <Typography variant="body2">
-                      {stat.values[0]?.value || 'N/A'}
+                      {stat.values && stat.values.length > 0 ? stat.values[0].value : 'N/A'}
                     </Typography>
                   </CardContent>
                 </Card>
