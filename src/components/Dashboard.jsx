@@ -45,12 +45,38 @@ function Dashboard({ user: initialUser, onLogout }) {
     }
   };
 
+  const fetchPageAccessToken = async (pageId) => {
+    try {
+      const response = await axios.get(
+        `https://graph.facebook.com/v17.0/${pageId}`,
+        {
+          params: {
+            fields: 'access_token',
+            access_token: user.accessToken,
+          },
+        }
+      );
+      return response.data.access_token;
+    } catch (error) {
+      console.error('Error fetching page access token:', error);
+      setError(`Error fetching page access token: ${error.response?.data?.error?.message || error.message}`);
+      setLoading(false);
+      return null;
+    }
+  };
+
   const fetchPageStats = async () => {
     const metrics = ['page_fans', 'page_views_total', 'page_engaged_users', 'page_impressions'];
     try {
       setLoading(true);
       setError(null);
       const stats = [];
+      const pageAccessToken = await fetchPageAccessToken(selectedPage);
+
+      if (!pageAccessToken) {
+        setLoading(false);
+        return;
+      }
 
       for (const metric of metrics) {
         const response = await axios.get(
@@ -58,7 +84,7 @@ function Dashboard({ user: initialUser, onLogout }) {
           {
             params: {
               metric,
-              access_token: user.accessToken,
+              access_token: pageAccessToken,
               period: 'day',
               date_preset: 'last_30d',
             },
