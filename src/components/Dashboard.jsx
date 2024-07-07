@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Select, MenuItem, Card, CardContent, Typography, Button, CircularProgress, TextField } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
 function Dashboard({ user, onLogout }) {
   const navigate = useNavigate();
@@ -10,8 +9,8 @@ function Dashboard({ user, onLogout }) {
   const [selectedPage, setSelectedPage] = useState('');
   const [pageStats, setPageStats] = useState(null);
   const [dateRange, setDateRange] = useState({
-    since: '2023-01-01',
-    until: '2023-12-31',
+    since: '2023-01-01',  // Changed to a past date
+    until: '2023-12-31',  // Changed to a past date
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -53,11 +52,11 @@ function Dashboard({ user, onLogout }) {
         `https://graph.facebook.com/v20.0/${selectedPage}/insights`,
         {
           params: {
-            metric: 'page_fans,page_engaged_users,page_impressions,page_actions_post_reactions_total',
+            metric: 'page_fans_total,page_post_engagements,page_impressions,page_reactions_total',
             access_token: user.accessToken,
-            since: new Date(dateRange.since).getTime() / 1000,
-            until: new Date(dateRange.until).getTime() / 1000,
-            period: 'total_over_range',
+            since: dateRange.since,
+            until: dateRange.until,
+            period: 'total_over_range'
           },
         }
       );
@@ -74,11 +73,11 @@ function Dashboard({ user, onLogout }) {
     setSelectedPage(event.target.value);
   };
 
-  const handleDateChange = (field) => (date) => {
-    setDateRange((prevRange) => ({
-      ...prevRange,
-      [field]: date,
-    }));
+  const handleDateChange = (event) => {
+    setDateRange({
+      ...dateRange,
+      [event.target.name]: event.target.value
+    });
   };
 
   useEffect(() => {
@@ -121,18 +120,27 @@ function Dashboard({ user, onLogout }) {
             ))}
           </Select>
 
-          <div>
-            <DatePicker
+          <div style={{ marginTop: '20px', marginBottom: '20px' }}>
+            <TextField
               label="Since"
+              type="date"
+              name="since"
               value={dateRange.since}
-              onChange={handleDateChange('since')}
-              renderInput={(params) => <TextField {...params} />}
+              onChange={handleDateChange}
+              InputLabelProps={{
+                shrink: true,
+              }}
+              style={{ marginRight: '20px' }}
             />
-            <DatePicker
+            <TextField
               label="Until"
+              type="date"
+              name="until"
               value={dateRange.until}
-              onChange={handleDateChange('until')}
-              renderInput={(params) => <TextField {...params} />}
+              onChange={handleDateChange}
+              InputLabelProps={{
+                shrink: true,
+              }}
             />
           </div>
 
@@ -142,7 +150,7 @@ function Dashboard({ user, onLogout }) {
                 <Card key={stat.name} style={{ minWidth: 200, margin: '10px' }}>
                   <CardContent>
                     <Typography variant="h6" component="div">
-                      {stat.name.replace('page_', '').replace('_total', '').replace(/_/g, ' ')}
+                      {stat.name}
                     </Typography>
                     <Typography variant="body2">
                       {stat.values[0]?.value || 'N/A'}
