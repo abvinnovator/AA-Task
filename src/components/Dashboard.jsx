@@ -8,11 +8,7 @@ function Dashboard({ user: initialUser, onLogout }) {
   const [user, setUser] = useState(initialUser);
   const [pages, setPages] = useState([]);
   const [selectedPage, setSelectedPage] = useState('');
-  const [pageStats, setPageStats] = useState(null);
-  const [dateRange, setDateRange] = useState({
-    since: '2023-01-01',
-    until: '2023-12-31',
-  });
+  const [pageStats, setPageStats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -50,25 +46,32 @@ function Dashboard({ user: initialUser, onLogout }) {
   };
 
   const fetchPageStats = async () => {
+    const metrics = ['page_fans', 'page_views_total', 'page_engaged_users', 'page_impressions'];
     try {
       setLoading(true);
       setError(null);
-      const response = await axios.get(
-        `https://graph.facebook.com/v17.0/${selectedPage}/insights`,
-        {
-          params: {
-            metric: 'page_fans,page_views_total,page_engaged_users,page_impressions',
-            access_token: user.accessToken,
-            period: 'day',
-            date_preset: 'last_30d',
-          },
-        }
-      );
-      console.log('Page insights:', response.data);
-      setPageStats(response.data.data);
+      const stats = [];
+
+      for (const metric of metrics) {
+        const response = await axios.get(
+          `https://graph.facebook.com/v17.0/${selectedPage}/insights`,
+          {
+            params: {
+              metric,
+              access_token: user.accessToken,
+              period: 'day',
+              date_preset: 'last_30d',
+            },
+          }
+        );
+        stats.push(...response.data.data);
+      }
+
+      console.log('Page insights:', stats);
+      setPageStats(stats);
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching page stats:', error);
+      console.error('Error fetching page stats:', error.response ? error.response.data : error.message);
       setError(`Error fetching page stats: ${error.response?.data?.error?.message || error.message}`);
       setLoading(false);
     }
@@ -118,26 +121,26 @@ function Dashboard({ user: initialUser, onLogout }) {
             ))}
           </Select>
 
-          {pageStats && (
-  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-around', marginTop: '20px' }}>
-    {pageStats.map((stat) => (
-      <Card key={stat.name} style={{ minWidth: 200, margin: '10px' }}>
-        <CardContent>
-          <Typography variant="h6" component="div">
-            {stat.name.replace('page_', '').replace('_', ' ')}
-          </Typography>
-          <Typography variant="body2">
-            {stat.values && stat.values.length > 0 
-              ? typeof stat.values[0].value === 'number'
-                ? stat.values[0].value.toLocaleString()
-                : stat.values[0].value
-              : 'N/A'}
-          </Typography>
-        </CardContent>
-      </Card>
-    ))}
-  </div>
-)}
+          {pageStats.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-around', marginTop: '20px' }}>
+              {pageStats.map((stat) => (
+                <Card key={stat.name} style={{ minWidth: 200, margin: '10px' }}>
+                  <CardContent>
+                    <Typography variant="h6" component="div">
+                      {stat.name.replace('page_', '').replace('_', ' ')}
+                    </Typography>
+                    <Typography variant="body2">
+                      {stat.values && stat.values.length > 0 
+                        ? typeof stat.values[0].value === 'number'
+                          ? stat.values[0].value.toLocaleString()
+                          : stat.values[0].value
+                        : 'N/A'}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>
