@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Select, MenuItem, Card, CardContent, Typography } from '@mui/material';
+import { Select, MenuItem, Card, CardContent, Typography, Button, CircularProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
 function Dashboard({ user, onLogout }) {
@@ -9,9 +9,11 @@ function Dashboard({ user, onLogout }) {
   const [selectedPage, setSelectedPage] = useState('');
   const [pageStats, setPageStats] = useState(null);
   const [dateRange, setDateRange] = useState({
-    since: '2024-01-01',
-    until: '2024-12-31',
+    since: '2023-01-01',  // Changed to a past date
+    until: '2023-12-31',  // Changed to a past date
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!user) {
@@ -28,32 +30,41 @@ function Dashboard({ user, onLogout }) {
 
   const fetchPages = async () => {
     try {
+      setLoading(true);
+      setError(null);
       const response = await axios.get(
-        `https://graph.facebook.com/v13.0/me/accounts?access_token=${user.accessToken}`
+        `https://graph.facebook.com/v20.0/me/accounts?access_token=${user.accessToken}`
       );
       setPages(response.data.data);
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching pages:', error);
+      setError('Error fetching pages. Please try again later.');
+      setLoading(false);
     }
   };
 
   const fetchPageStats = async () => {
     try {
+      setLoading(true);
+      setError(null);
       const response = await axios.get(
-        `https://graph.facebook.com/v13.0/${selectedPage}/insights`,
+        `https://graph.facebook.com/v20.0/${selectedPage}/insights`,
         {
           params: {
-            metric: 'page_fans,page_engaged_users,page_impressions,page_reactions_total',
+            metric: 'page_fans_total,page_post_engagements,page_impressions,page_reactions_total',
             access_token: user.accessToken,
-            period: 'total_over_range',
-            since: dateRange.since,
-            until: dateRange.until,
+            period: 'day',
+            date_preset: 'last_30d',
           },
         }
       );
       setPageStats(response.data.data);
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching page stats:', error);
+      setError('Error fetching page stats. This page might not have any activity or you might not have sufficient permissions.');
+      setLoading(false);
     }
   };
 
@@ -65,7 +76,7 @@ function Dashboard({ user, onLogout }) {
     if (selectedPage) {
       fetchPageStats();
     }
-  }, [selectedPage, dateRange]);
+  }, [selectedPage]);
 
   const handleLogout = () => {
     onLogout();
@@ -81,31 +92,43 @@ function Dashboard({ user, onLogout }) {
       <h1>Dashboard</h1>
       <img src={user.picture?.data?.url} alt={user.name} />
       <p>Welcome, {user.name}!</p>
-      <button onClick={handleLogout}>Logout</button>
+      <Button onClick={handleLogout} variant="contained" color="secondary">Logout</Button>
 
-      <Select value={selectedPage} onChange={handlePageChange}>
-        {pages.map((page) => (
-          <MenuItem key={page.id} value={page.id}>
-            {page.name}
-          </MenuItem>
-        ))}
-      </Select>
+      {loading ? (
+        <CircularProgress />
+      ) : error ? (
+        <Typography color="error">{error}</Typography>
+      ) : pages.length === 0 ? (
+        <Typography>
+          You don't have admin access to any Facebook Pages. To use this feature, please create a Facebook Page or obtain admin access to an existing one.
+        </Typography>
+      ) : (
+        <>
+          <Select value={selectedPage} onChange={handlePageChange} style={{ marginTop: '20px', marginBottom: '20px' }}>
+            {pages.map((page) => (
+              <MenuItem key={page.id} value={page.id}>
+                {page.name}
+              </MenuItem>
+            ))}
+          </Select>
 
-      {pageStats && (
-        <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '20px' }}>
-          {pageStats.map((stat) => (
-            <Card key={stat.name} style={{ minWidth: 200 }}>
-              <CardContent>
-                <Typography variant="h5" component="div">
-                  {stat.name}
-                </Typography>
-                <Typography variant="body2">
-                  {stat.values[0].value}
-                </Typography>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+          {pageStats && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-around', marginTop: '20px' }}>
+              {pageStats.map((stat) => (
+                <Card key={stat.name} style={{ minWidth: 200, margin: '10px' }}>
+                  <CardContent>
+                    <Typography variant="h6" component="div">
+                      {stat.name}
+                    </Typography>
+                    <Typography variant="body2">
+                      {stat.values[0]?.value || 'N/A'}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
