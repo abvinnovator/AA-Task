@@ -5,7 +5,6 @@ function Login({ setUser }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Load the Facebook SDK asynchronously
     window.fbAsyncInit = function() {
       FB.init({
         appId: '895754192568949',
@@ -30,10 +29,12 @@ function Login({ setUser }) {
     FB.login(function(response) {
       if (response.authResponse) {
         FB.api('/me', { fields: 'name,email,picture' }, function(userInfo) {
-          setUser({
+          const userData = {
             ...userInfo,
             accessToken: response.authResponse.accessToken
-          });
+          };
+          setUser(userData);
+          localStorage.setItem('user', JSON.stringify(userData));
           navigate('/dashboard');
         });
       } else {

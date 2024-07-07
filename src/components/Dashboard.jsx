@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Select, MenuItem, Card, CardContent, Typography } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 
-function Dashboard({ user }) {
+function Dashboard({ user, onLogout }) {
+  const navigate = useNavigate();
   const [pages, setPages] = useState([]);
   const [selectedPage, setSelectedPage] = useState('');
   const [pageStats, setPageStats] = useState(null);
@@ -12,10 +14,17 @@ function Dashboard({ user }) {
   });
 
   useEffect(() => {
-    if (user) {
-      fetchPages();
+    if (!user) {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        user = JSON.parse(storedUser);
+      } else {
+        navigate('/');
+        return;
+      }
     }
-  }, [user]);
+    fetchPages();
+  }, [user, navigate]);
 
   const fetchPages = async () => {
     try {
@@ -58,11 +67,21 @@ function Dashboard({ user }) {
     }
   }, [selectedPage, dateRange]);
 
+  const handleLogout = () => {
+    onLogout();
+    navigate('/');
+  };
+
+  if (!user) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <div>
       <h1>Dashboard</h1>
-      <img src={user.picture.data.url} alt={user.name} />
+      <img src={user.picture?.data?.url} alt={user.name} />
       <p>Welcome, {user.name}!</p>
+      <button onClick={handleLogout}>Logout</button>
 
       <Select value={selectedPage} onChange={handlePageChange}>
         {pages.map((page) => (
