@@ -57,11 +57,10 @@ function Dashboard({ user: initialUser, onLogout }) {
         `https://graph.facebook.com/v17.0/${selectedPage}/insights`,
         {
           params: {
-            metric: 'page_fan_adds_unique,page_views_total,page_engaged_users,page_impressions',
+            metric: 'page_fans,page_views_total,page_engaged_users,page_impressions',
             access_token: user.accessToken,
             period: 'day',
-            since: dateRange.since,
-            until: dateRange.until,
+            date_preset: 'last_30d',
           },
         }
       );
@@ -83,7 +82,7 @@ function Dashboard({ user: initialUser, onLogout }) {
     if (selectedPage && user && user.accessToken) {
       fetchPageStats();
     }
-  }, [selectedPage, user, dateRange]);
+  }, [selectedPage, user]);
 
   const handleLogout = () => {
     onLogout();
@@ -120,21 +119,25 @@ function Dashboard({ user: initialUser, onLogout }) {
           </Select>
 
           {pageStats && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-around', marginTop: '20px' }}>
-              {pageStats.map((stat) => (
-                <Card key={stat.name} style={{ minWidth: 200, margin: '10px' }}>
-                  <CardContent>
-                    <Typography variant="h6" component="div">
-                      {stat.name}
-                    </Typography>
-                    <Typography variant="body2">
-                      {stat.values && stat.values.length > 0 ? stat.values[0].value : 'N/A'}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-around', marginTop: '20px' }}>
+    {pageStats.map((stat) => (
+      <Card key={stat.name} style={{ minWidth: 200, margin: '10px' }}>
+        <CardContent>
+          <Typography variant="h6" component="div">
+            {stat.name.replace('page_', '').replace('_', ' ')}
+          </Typography>
+          <Typography variant="body2">
+            {stat.values && stat.values.length > 0 
+              ? typeof stat.values[0].value === 'number'
+                ? stat.values[0].value.toLocaleString()
+                : stat.values[0].value
+              : 'N/A'}
+          </Typography>
+        </CardContent>
+      </Card>
+    ))}
+  </div>
+)}
         </>
       )}
     </div>
