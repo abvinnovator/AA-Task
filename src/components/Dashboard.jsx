@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Select, MenuItem, Card, CardContent, Typography, Button, CircularProgress } from '@mui/material';
+import { Select, MenuItem, Card, CardContent, Typography, Button, CircularProgress, TextField } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
 function Dashboard({ user, onLogout }) {
   const navigate = useNavigate();
@@ -9,8 +10,8 @@ function Dashboard({ user, onLogout }) {
   const [selectedPage, setSelectedPage] = useState('');
   const [pageStats, setPageStats] = useState(null);
   const [dateRange, setDateRange] = useState({
-    since: '2023-01-01',  // Changed to a past date
-    until: '2023-12-31',  // Changed to a past date
+    since: '2023-01-01',
+    until: '2023-12-31',
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -52,10 +53,11 @@ function Dashboard({ user, onLogout }) {
         `https://graph.facebook.com/v20.0/${selectedPage}/insights`,
         {
           params: {
-            metric: 'page_fans_total,page_post_engagements,page_impressions,page_reactions_total',
+            metric: 'page_fans,page_engaged_users,page_impressions,page_actions_post_reactions_total',
             access_token: user.accessToken,
-            period: 'day',
-            date_preset: 'last_30d',
+            since: new Date(dateRange.since).getTime() / 1000,
+            until: new Date(dateRange.until).getTime() / 1000,
+            period: 'total_over_range',
           },
         }
       );
@@ -72,11 +74,18 @@ function Dashboard({ user, onLogout }) {
     setSelectedPage(event.target.value);
   };
 
+  const handleDateChange = (field) => (date) => {
+    setDateRange((prevRange) => ({
+      ...prevRange,
+      [field]: date,
+    }));
+  };
+
   useEffect(() => {
     if (selectedPage) {
       fetchPageStats();
     }
-  }, [selectedPage]);
+  }, [selectedPage, dateRange]);
 
   const handleLogout = () => {
     onLogout();
@@ -112,13 +121,28 @@ function Dashboard({ user, onLogout }) {
             ))}
           </Select>
 
+          <div>
+            <DatePicker
+              label="Since"
+              value={dateRange.since}
+              onChange={handleDateChange('since')}
+              renderInput={(params) => <TextField {...params} />}
+            />
+            <DatePicker
+              label="Until"
+              value={dateRange.until}
+              onChange={handleDateChange('until')}
+              renderInput={(params) => <TextField {...params} />}
+            />
+          </div>
+
           {pageStats && (
             <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-around', marginTop: '20px' }}>
               {pageStats.map((stat) => (
                 <Card key={stat.name} style={{ minWidth: 200, margin: '10px' }}>
                   <CardContent>
                     <Typography variant="h6" component="div">
-                      {stat.name}
+                      {stat.name.replace('page_', '').replace('_total', '').replace(/_/g, ' ')}
                     </Typography>
                     <Typography variant="body2">
                       {stat.values[0]?.value || 'N/A'}
