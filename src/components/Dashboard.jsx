@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Select, MenuItem, Card, CardContent, Typography, Button, CircularProgress } from '@mui/material';
+import { Select, MenuItem, Card, CardContent, Typography, Button, CircularProgress, TextField } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import ThumbUpAltIcon from '@mui/icons-material/ThumbUpAlt';
 import PeopleIcon from '@mui/icons-material/People';
@@ -23,6 +23,8 @@ function Dashboard({ user: initialUser, onLogout }) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
     if (!user) {
@@ -36,7 +38,12 @@ function Dashboard({ user: initialUser, onLogout }) {
       fetchPages();
     }
   }, [user, navigate]);
-
+  useEffect(() => {
+    if (selectedPage && startDate && endDate) {
+      fetchPageStats();
+    }
+  }, [selectedPage, startDate, endDate]);
+  
   const fetchPages = async () => {
     try {
       const response = await axios.get(
@@ -50,44 +57,58 @@ function Dashboard({ user: initialUser, onLogout }) {
   };
 
   const fetchPageStats = async (pageId, pageAccessToken) => {
+    if (!selectedPage || !startDate || !endDate) {
+      console.log('Missing required data for fetching stats');
+      return;
+    }
     setLoading(true);
     setError('');
-    const now = Math.floor(Date.now() / 1000);
-const weekAgo = now - 7 * 24 * 60 * 60;
-
     try {
+      const selectedPageData = pages.find(page => page.id === selectedPage);
+      if (!selectedPageData || !selectedPageData.access_token) {
+        throw new Error('Page access token not found.');
+      }
+
+      const pageId = selectedPage;
+      const pageAccessToken = selectedPageData.access_token;
+  
+      const since = Math.floor(new Date(startDate).getTime() / 1000);
+      const until = Math.floor(new Date(endDate).getTime() / 1000);
+
+      console.log(`Fetching data for date range: ${new Date(since * 1000).toISOString()} to ${new Date(until * 1000).toISOString()}`);
+  
       const [feedResponse, pageResponse, insightsResponse] = await Promise.all([
         axios.get(`https://graph.facebook.com/v20.0/${pageId}/feed?fields=id,reactions.summary(total_count),likes.summary(total_count)&access_token=${pageAccessToken}`),
         axios.get(`https://graph.facebook.com/v20.0/${pageId}?fields=fan_count,followers_count&access_token=${pageAccessToken}`),
-        axios.get(`https://graph.facebook.com/${pageId}/insights?metric=page_post_engagements,page_impressions_organic_v2&period=day&since=${weekAgo}&until=${now}&access_token=${pageAccessToken}`)
+        axios.get(`https://graph.facebook.com/${pageId}/insights?metric=page_post_engagements,page_impressions_organic_v2&period=total_over_range&since=${since}&until=${until}&access_token=${pageAccessToken}`)
       ]);
       
-      console.log('Feed Response:', feedResponse.data);
-      console.log('Page Response:', pageResponse.data);
-      console.log('Insights Response:', insightsResponse.data);
+     
       
       const posts = feedResponse.data.data;
       const totalReactions = posts.reduce((sum, post) => sum + (post.reactions?.summary?.total_count || 0), 0);
       const totalLikes = posts.reduce((sum, post) => sum + (post.likes?.summary?.total_count || 0), 0);
   
-      // Process insights data
       const insightsData = insightsResponse.data.data;
-      console.log('Insights Data:', insightsData);
+     
   
       let engagements = 0;
       let impressions = 0;
   
       insightsData.forEach(item => {
         console.log(`Processing ${item.name}:`, item);
-        if (item.name === 'page_post_engagements') {
-          engagements = item.values.reduce((total, value) => total + (value.value || 0), 0);
-        } else if (item.name === 'page_impressions_organic_v2') {
-          impressions = item.values.reduce((total, value) => total + (value.value || 0), 0);
+        if (item.name === 'page_post_engagements' && item.values && item.values.length > 0) {
+          engagements = item.values[0].value || 0;
+        } else if (item.name === 'page_impressions_organic_v2' && item.values && item.values.length > 0) {
+          impressions = item.values[0].value || 0;
         }
       });
   
-      console.log('Calculated engagements:', engagements);
-      console.log('Calculated impressions:', impressions);
+     
+  
+      if (engagements === 0 && impressions === 0) {
+        console.warn('Both engagements and impressions are 0. This might indicate an issue with the data returned by the API.');
+      }
   
       setPageStats({
         totalReactions,
@@ -98,14 +119,7 @@ const weekAgo = now - 7 * 24 * 60 * 60;
         totalImpressions: impressions,
       });
   
-      console.log('Set page stats:', {
-        totalReactions,
-        totalLikes,
-        totalFollowers: pageResponse.data.followers_count,
-        totalFans: pageResponse.data.fan_count,
-        totalEngagement: engagements,
-        totalImpressions: impressions,
-      });
+     
   
     } catch (error) {
       console.error('Error fetching page stats:', error);
@@ -117,26 +131,26 @@ const weekAgo = now - 7 * 24 * 60 * 60;
       setLoading(false);
     }
   };
-
   const handlePageChange = (event) => {
     const pageId = event.target.value;
     setSelectedPage(pageId);
-    if (pageId) {
-      const selectedPageData = pages.find(page => page.id === pageId);
-      if (selectedPageData && selectedPageData.access_token) {
-        fetchPageStats(pageId, selectedPageData.access_token);
-      } else {
-        setError('Page access token not found.');
-      }
-    } else {
+    if (!pageId) {
       setPageStats({
         totalReactions: 0,
         totalLikes: 0,
         totalFollowers: 0,
+        totalFans: 0,
         totalEngagement: 0,
         totalImpressions: 0,
       });
     }
+  };
+  const handleStartDateChange = (event) => {
+    setStartDate(event.target.value);
+  };
+
+  const handleEndDateChange = (event) => {
+    setEndDate(event.target.value);
   };
 
   const handleLogout = () => {
@@ -168,8 +182,31 @@ const weekAgo = now - 7 * 24 * 60 * 60;
         </div>
 
         <Card className="mb-8 bg-white rounded-lg shadow-lg">
+
           <CardContent className="p-6">
-            <Typography variant="h6" gutterBottom className="text-gray-700 font-semibold">Select a Page</Typography>
+            <Typography variant="h6" gutterBottom className="text-gray-700 font-semibold">Select a Page and Date Range</Typography>
+            <div className="flex space-x-4 mt-4">
+            <TextField
+              label="Start Date"
+              type="date"
+              value={startDate}
+              onChange={handleStartDateChange}
+              InputLabelProps={{
+                shrink: true,
+              }}
+              fullWidth
+            />
+            <TextField
+              label="End Date"
+              type="date"
+              value={endDate}
+              onChange={handleEndDateChange}
+              InputLabelProps={{
+                shrink: true,
+              }}
+              fullWidth
+            />
+          </div>
             <Select
               value={selectedPage}
               onChange={handlePageChange}
@@ -184,6 +221,7 @@ const weekAgo = now - 7 * 24 * 60 * 60;
                 <MenuItem key={page.id} value={page.id}>{page.name}</MenuItem>
               ))}
             </Select>
+            
           </CardContent>
         </Card>
 
