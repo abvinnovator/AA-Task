@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Select, MenuItem, Card, CardContent, Typography, Button, CircularProgress, Grid } from '@mui/material';
+import { Select, MenuItem, Card, CardContent, Typography, Button, CircularProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
 function Dashboard({ user: initialUser, onLogout }) {
@@ -8,9 +8,8 @@ function Dashboard({ user: initialUser, onLogout }) {
   const [user, setUser] = useState(initialUser);
   const [pages, setPages] = useState([]);
   const [selectedPage, setSelectedPage] = useState('');
-  const [pageFans, setPageFans] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [totalReactions, setTotalReactions] = useState(0);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -20,104 +19,47 @@ function Dashboard({ user: initialUser, onLogout }) {
       } else {
         navigate('/');
       }
+    } else {
+      fetchPages();
     }
   }, [user, navigate]);
 
-  useEffect(() => {
-    if (user && user.accessToken) {
-      fetchPages();
-    }
-  }, [user]);
-
   const fetchPages = async () => {
     try {
-      setLoading(true);
-      setError(null);
       const response = await axios.get(
         `https://graph.facebook.com/v17.0/me/accounts?access_token=${user.accessToken}`
       );
       setPages(response.data.data);
-      setLoading(false);
     } catch (error) {
       console.error('Error fetching pages:', error);
-      setError('Error fetching pages. Please try again later.');
-      setLoading(false);
     }
   };
 
-  const fetchPageAccessToken = async (pageId) => {
+  const fetchReactions = async (pageId) => {
+    setLoading(true);
     try {
       const response = await axios.get(
-        `https://graph.facebook.com/v17.0/${pageId}`,
-        {
-          params: {
-            fields: 'access_token',
-            access_token: user.accessToken,
-          },
-        }
+        `https://graph.facebook.com/v20.0/${pageId}/feed?fields=id,reactions&access_token=${user.accessToken}`
       );
-      return response.data.access_token;
+      const posts = response.data.data;
+      const total = posts.reduce((sum, post) => sum + (post.reactions?.summary?.total_count || 0), 0);
+      setTotalReactions(total);
     } catch (error) {
-      console.error('Error fetching page access token:', error);
-      setError(`Error fetching page access token: ${error.response?.data?.error?.message || error.message}`);
-      setLoading(false);
-      return null;
-    }
-  };
-
-  const fetchPageFans = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const pageAccessToken = await fetchPageAccessToken(selectedPage);
-  
-      if (!pageAccessToken) {
-        setLoading(false);
-        return;
-      }
-  
-      const response = await axios.get(
-        `https://graph.facebook.com/v17.0/${selectedPage}/insights`,
-        {
-          params: {
-            metric: 'page_fans',
-            access_token: pageAccessToken,
-            period: 'day',
-            date_preset: 'last_30d',
-          },
-        }
-      );
-  
-      console.log('Page fans response:', response.data);
-  
-      if (response.data && response.data.data && response.data.data.length > 0) {
-        const fansData = response.data.data.find(stat => stat.name === 'page_fans');
-        if (fansData && fansData.values && fansData.values.length > 0) {
-          setPageFans(fansData.values[0].value);
-        } else {
-          setError('No fan data available.');
-        }
-      } else {
-        setError('No data received from the API.');
-      }
-  
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching page fans:', error.response ? error.response.data : error.message);
-      setError(`Error fetching page fans: ${error.response?.data?.error?.message || error.message}`);
+      console.error('Error fetching reactions:', error);
+    } finally {
       setLoading(false);
     }
   };
 
   const handlePageChange = (event) => {
-    setSelectedPage(event.target.value);
-  };
-
-  useEffect(() => {
-    if (selectedPage && user && user.accessToken) {
-      fetchPageFans();
+    const pageId = event.target.value;
+    setSelectedPage(pageId);
+    if (pageId) {
+      fetchReactions(pageId);
+    } else {
+      setTotalReactions(0);
     }
-  }, [selectedPage, user]);
+  };
 
   const handleLogout = () => {
     onLogout();
@@ -131,48 +73,38 @@ function Dashboard({ user: initialUser, onLogout }) {
   return (
     <div>
       <h1>Dashboard</h1>
-      <Grid container spacing={2} alignItems="center">
-        <Grid item>
-          <img src={user.picture?.data?.url} alt={user.name} style={{ borderRadius: '50%', width: 50, height: 50 }} />
-        </Grid>
-        <Grid item>
-          <Typography variant="h5">Welcome, {user.name}!</Typography>
-        </Grid>
-        <Grid item>
-          <Button onClick={handleLogout} variant="contained" color="secondary">Logout</Button>
-        </Grid>
-      </Grid>
+      <img src={user.picture?.data?.url} alt={user.name} />
+      <p>Welcome, {user.name}!</p>
+      <Button onClick={handleLogout} variant="contained" color="secondary">Logout</Button>
 
-      {loading ? (
-        <CircularProgress style={{ marginTop: 20 }} />
-      ) : error ? (
-        <Typography color="error" style={{ marginTop: 20 }}>{error}</Typography>
-      ) : pages.length === 0 ? (
-        <Typography style={{ marginTop: 20 }}>
-          You don't have admin access to any Facebook Pages. To use this feature, please create a Facebook Page or obtain admin access to an existing one.
-        </Typography>
-      ) : (
-        <>
-          <Select value={selectedPage} onChange={handlePageChange} style={{ marginTop: 20, marginBottom: 20, minWidth: 200 }}>
+      <Card style={{ marginTop: '20px', maxWidth: '400px', margin: 'auto' }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>Select a Page</Typography>
+          <Select
+            value={selectedPage}
+            onChange={handlePageChange}
+            fullWidth
+            displayEmpty
+          >
+            <MenuItem value="">
+              <em>Select a page</em>
+            </MenuItem>
             {pages.map((page) => (
-              <MenuItem key={page.id} value={page.id}>
-                {page.name}
-              </MenuItem>
+              <MenuItem key={page.id} value={page.id}>{page.name}</MenuItem>
             ))}
           </Select>
 
-          {pageFans !== null && (
-            <Card style={{ minWidth: 200, margin: '20px auto' }}>
-              <CardContent>
-                <Typography variant="h6">Total Followers / Fans</Typography>
-                <Typography variant="body2">
-                  {pageFans.toLocaleString()}
-                </Typography>
-              </CardContent>
-            </Card>
+          {loading ? (
+            <CircularProgress style={{ marginTop: '20px' }} />
+          ) : (
+            selectedPage && (
+              <Typography variant="h6" style={{ marginTop: '20px' }}>
+                Total Reactions: {totalReactions}
+              </Typography>
+            )
           )}
-        </>
-      )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
