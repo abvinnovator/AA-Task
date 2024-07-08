@@ -7,6 +7,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import CompanyLogo from '../assets/logo.png'
+import VisibilityIcon from '@mui/icons-material/Visibility';
 
 function Dashboard({ user: initialUser, onLogout }) {
   const navigate = useNavigate();
@@ -48,33 +49,74 @@ function Dashboard({ user: initialUser, onLogout }) {
     }
   };
 
- const fetchPageStats = async (pageId, pageAccessToken) => {
-  setLoading(true);
-  setError('');
-  try {
-    const [feedResponse, pageResponse] = await Promise.all([
-      axios.get(`https://graph.facebook.com/v20.0/${pageId}/feed?fields=id,reactions.summary(total_count),likes.summary(total_count)&access_token=${pageAccessToken}`),
-      axios.get(`https://graph.facebook.com/v20.0/${pageId}?fields=fan_count&access_token=${pageAccessToken}`)
-    ]);
+  const fetchPageStats = async (pageId, pageAccessToken) => {
+    setLoading(true);
+    setError('');
+    const now = Math.floor(Date.now() / 1000);
+const weekAgo = now - 7 * 24 * 60 * 60;
 
-    const posts = feedResponse.data.data;
-    const totalReactions = posts.reduce((sum, post) => sum + (post.reactions?.summary?.total_count || 0), 0);
-    const totalLikes = posts.reduce((sum, post) => sum + (post.likes?.summary?.total_count || 0), 0);
-
-    setPageStats({
-      totalReactions,
-      totalLikes,
-      totalFollowers: pageResponse.data.fan_count,
-      totalEngagement: 'N/A',
-      totalImpressions: 'N/A',
-    });
-  } catch (error) {
-    console.error('Error fetching page stats:', error);
-    setError('Failed to fetch page statistics. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      const [feedResponse, pageResponse, insightsResponse] = await Promise.all([
+        axios.get(`https://graph.facebook.com/v20.0/${pageId}/feed?fields=id,reactions.summary(total_count),likes.summary(total_count)&access_token=${pageAccessToken}`),
+        axios.get(`https://graph.facebook.com/v20.0/${pageId}?fields=fan_count,followers_count&access_token=${pageAccessToken}`),
+        axios.get(`https://graph.facebook.com/${pageId}/insights?metric=page_post_engagements,page_impressions_organic_v2&period=day&since=${weekAgo}&until=${now}&access_token=${pageAccessToken}`)
+      ]);
+      
+      console.log('Feed Response:', feedResponse.data);
+      console.log('Page Response:', pageResponse.data);
+      console.log('Insights Response:', insightsResponse.data);
+      
+      const posts = feedResponse.data.data;
+      const totalReactions = posts.reduce((sum, post) => sum + (post.reactions?.summary?.total_count || 0), 0);
+      const totalLikes = posts.reduce((sum, post) => sum + (post.likes?.summary?.total_count || 0), 0);
+  
+      // Process insights data
+      const insightsData = insightsResponse.data.data;
+      console.log('Insights Data:', insightsData);
+  
+      let engagements = 0;
+      let impressions = 0;
+  
+      insightsData.forEach(item => {
+        console.log(`Processing ${item.name}:`, item);
+        if (item.name === 'page_post_engagements') {
+          engagements = item.values.reduce((total, value) => total + (value.value || 0), 0);
+        } else if (item.name === 'page_impressions_organic_v2') {
+          impressions = item.values.reduce((total, value) => total + (value.value || 0), 0);
+        }
+      });
+  
+      console.log('Calculated engagements:', engagements);
+      console.log('Calculated impressions:', impressions);
+  
+      setPageStats({
+        totalReactions,
+        totalLikes,
+        totalFollowers: pageResponse.data.followers_count,
+        totalFans: pageResponse.data.fan_count,
+        totalEngagement: engagements,
+        totalImpressions: impressions,
+      });
+  
+      console.log('Set page stats:', {
+        totalReactions,
+        totalLikes,
+        totalFollowers: pageResponse.data.followers_count,
+        totalFans: pageResponse.data.fan_count,
+        totalEngagement: engagements,
+        totalImpressions: impressions,
+      });
+  
+    } catch (error) {
+      console.error('Error fetching page stats:', error);
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+      }
+      setError('Failed to fetch page statistics. Please check the console for more details.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePageChange = (event) => {
     const pageId = event.target.value;
@@ -151,30 +193,36 @@ function Dashboard({ user: initialUser, onLogout }) {
           </div>
         ) : (
           selectedPage && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               <StatCard
                 title="Total Reactions"
                 value={pageStats.totalReactions}
                 icon={<ThumbUpAltIcon className="text-blue-500" />}
-                color="blue"
               />
               <StatCard
                 title="Total Likes"
                 value={pageStats.totalLikes}
                 icon={<FavoriteIcon className="text-red-500" />}
-                color="red"
               />
               <StatCard
                 title="Total Followers"
                 value={pageStats.totalFollowers}
                 icon={<PeopleIcon className="text-green-500" />}
-                color="green"
+              />
+              <StatCard
+                title="Total Fans"
+                value={pageStats.totalFans}
+                icon={<PeopleIcon className="text-purple-500" />}
               />
               <StatCard
                 title="Total Engagement"
                 value={pageStats.totalEngagement}
                 icon={<BarChartIcon className="text-yellow-500" />}
-                color="yellow"
+              />
+              <StatCard
+                title="Total Impressions"
+                value={pageStats.totalImpressions}
+                icon={<VisibilityIcon className="text-indigo-500" />}
               />
             </div>
           )
@@ -190,26 +238,19 @@ function Dashboard({ user: initialUser, onLogout }) {
   );
 }
 
-function StatCard({ title, value, icon, color }) {
-  const colorClasses = {
-    blue: 'from-blue-400 to-blue-600',
-    red: 'from-red-400 to-red-600',
-    green: 'from-green-400 to-green-600',
-    yellow: 'from-yellow-400 to-yellow-600'
-  };
-
+function StatCard({ title, value, icon }) {
   return (
-    <Card className={`bg-gradient-to-br ${colorClasses[color]} rounded-lg shadow-lg transition-transform duration-300 hover:scale-105 aspect-square`}>
+    <Card className="bg-white border border-gray-300 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 aspect-square">
       <CardContent className="p-6 h-full flex flex-col justify-between">
         <div className="flex items-center justify-between">
-          <Typography variant="h6" className="font-semibold text-white">
+          <Typography variant="h6" className="font-semibold text-gray-800">
             {title}
           </Typography>
-          <div className="bg-white p-2 rounded-full">
+          <div className="bg-gray-100 p-2 rounded-full">
             {icon}
           </div>
         </div>
-        <Typography variant="h3" className="font-bold text-white mt-4 self-end">
+        <Typography variant="h3" className="font-bold text-gray-800 mt-4 self-end">
           {value}
         </Typography>
       </CardContent>
