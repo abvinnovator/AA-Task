@@ -88,7 +88,19 @@ function Dashboard({ user: initialUser, onLogout }) {
         }
       );
   
-      setPageFans(response.data.data[0].values[0].value);
+      console.log('Page fans response:', response.data);
+  
+      if (response.data && response.data.data && response.data.data.length > 0) {
+        const fansData = response.data.data.find(stat => stat.name === 'page_fans');
+        if (fansData && fansData.values && fansData.values.length > 0) {
+          setPageFans(fansData.values[0].value);
+        } else {
+          setError('No fan data available.');
+        }
+      } else {
+        setError('No data received from the API.');
+      }
+  
       setLoading(false);
     } catch (error) {
       console.error('Error fetching page fans:', error.response ? error.response.data : error.message);
