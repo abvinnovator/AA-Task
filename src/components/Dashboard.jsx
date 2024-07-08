@@ -9,6 +9,7 @@ function Dashboard({ user: initialUser, onLogout }) {
   const [pages, setPages] = useState([]);
   const [selectedPage, setSelectedPage] = useState('');
   const [totalReactions, setTotalReactions] = useState(0);
+  const [totalLikes, setTotalLikes] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -37,19 +38,21 @@ function Dashboard({ user: initialUser, onLogout }) {
     }
   };
 
-  const fetchReactions = async (pageId, pageAccessToken) => {
+  const fetchReactionsAndLikes = async (pageId, pageAccessToken) => {
     setLoading(true);
     setError('');
     try {
       const response = await axios.get(
-        `https://graph.facebook.com/v20.0/${pageId}/feed?fields=id,reactions.summary(total_count)&access_token=${pageAccessToken}`
+        `https://graph.facebook.com/v20.0/${pageId}/feed?fields=id,reactions.summary(total_count),likes.summary(total_count)&access_token=${pageAccessToken}`
       );
       const posts = response.data.data;
-      const total = posts.reduce((sum, post) => sum + (post.reactions?.summary?.total_count || 0), 0);
-      setTotalReactions(total);
+      const totalReactions = posts.reduce((sum, post) => sum + (post.reactions?.summary?.total_count || 0), 0);
+      const totalLikes = posts.reduce((sum, post) => sum + (post.likes?.summary?.total_count || 0), 0);
+      setTotalReactions(totalReactions);
+      setTotalLikes(totalLikes);
     } catch (error) {
-      console.error('Error fetching reactions:', error);
-      setError('Failed to fetch reactions. Please try again.');
+      console.error('Error fetching reactions and likes:', error);
+      setError('Failed to fetch reactions and likes. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -61,12 +64,13 @@ function Dashboard({ user: initialUser, onLogout }) {
     if (pageId) {
       const selectedPageData = pages.find(page => page.id === pageId);
       if (selectedPageData && selectedPageData.access_token) {
-        fetchReactions(pageId, selectedPageData.access_token);
+        fetchReactionsAndLikes(pageId, selectedPageData.access_token);
       } else {
         setError('Page access token not found.');
       }
     } else {
       setTotalReactions(0);
+      setTotalLikes(0);
     }
   };
 
@@ -107,9 +111,14 @@ function Dashboard({ user: initialUser, onLogout }) {
             <CircularProgress style={{ marginTop: '20px' }} />
           ) : (
             selectedPage && (
-              <Typography variant="h6" style={{ marginTop: '20px' }}>
-                Total Reactions: {totalReactions}
-              </Typography>
+              <div style={{ marginTop: '20px' }}>
+                <Typography variant="h6">
+                  Total Reactions: {totalReactions}
+                </Typography>
+                <Typography variant="h6">
+                  Total Likes: {totalLikes}
+                </Typography>
+              </div>
             )
           )}
 
