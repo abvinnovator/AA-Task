@@ -10,6 +10,7 @@ function Dashboard({ user: initialUser, onLogout }) {
   const [selectedPage, setSelectedPage] = useState('');
   const [totalReactions, setTotalReactions] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!user) {
@@ -32,20 +33,23 @@ function Dashboard({ user: initialUser, onLogout }) {
       setPages(response.data.data);
     } catch (error) {
       console.error('Error fetching pages:', error);
+      setError('Failed to fetch pages. Please try again.');
     }
   };
 
-  const fetchReactions = async (pageId) => {
+  const fetchReactions = async (pageId, pageAccessToken) => {
     setLoading(true);
+    setError('');
     try {
       const response = await axios.get(
-        `https://graph.facebook.com/v20.0/${pageId}/feed?fields=id,reactions&access_token=${user.accessToken}`
+        `https://graph.facebook.com/v20.0/${pageId}/feed?fields=id,reactions.summary(total_count)&access_token=${pageAccessToken}`
       );
       const posts = response.data.data;
       const total = posts.reduce((sum, post) => sum + (post.reactions?.summary?.total_count || 0), 0);
       setTotalReactions(total);
     } catch (error) {
       console.error('Error fetching reactions:', error);
+      setError('Failed to fetch reactions. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -55,7 +59,12 @@ function Dashboard({ user: initialUser, onLogout }) {
     const pageId = event.target.value;
     setSelectedPage(pageId);
     if (pageId) {
-      fetchReactions(pageId);
+      const selectedPageData = pages.find(page => page.id === pageId);
+      if (selectedPageData && selectedPageData.access_token) {
+        fetchReactions(pageId, selectedPageData.access_token);
+      } else {
+        setError('Page access token not found.');
+      }
     } else {
       setTotalReactions(0);
     }
@@ -102,6 +111,12 @@ function Dashboard({ user: initialUser, onLogout }) {
                 Total Reactions: {totalReactions}
               </Typography>
             )
+          )}
+
+          {error && (
+            <Typography color="error" style={{ marginTop: '20px' }}>
+              {error}
+            </Typography>
           )}
         </CardContent>
       </Card>
